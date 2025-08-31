@@ -6,7 +6,6 @@ export const handler = async () => {
 
   const cfg = (siteID && token) ? { siteID, token } : undefined;
 
-  // Try to talk to a store using whichever config is available
   const store = getStore("settings-store", cfg);
 
   let okList = false, errList = "";
