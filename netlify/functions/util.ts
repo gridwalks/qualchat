@@ -1,21 +1,28 @@
-
-import type { Handler, HandlerEvent, HandlerContext } from "@netlify/functions";
+import type { HandlerContext } from "@netlify/functions";
 import { getStore } from "@netlify/blobs";
 import crypto from "crypto";
 
 export type User = { email?: string; roles?: string[]; sub?: string } | null;
 
-// --- NEW: allow manual config for local/dev or non-Netlify hosts ---
-function blobsConfigOrUndefined() {
+// ALWAYS construct explicit config from env; fail loudly if missing
+function blobsRequiredConfig() {
   const siteID = process.env.NETLIFY_BLOBS_SITE_ID || process.env.NETLIFY_SITE_ID;
-  const token  = process.env.NETLIFY_BLOBS_TOKEN;
-  if (siteID && token) return { siteID, token };
-  return undefined; // Use Netlify's auto-injected environment when deployed
+  const token  = process.env.NETLIFY_BLOBS_TOKEN || process.env.NETLIFY_API_TOKEN;
+  if (!siteID || !token) {
+    const missing = {
+      NETLIFY_BLOBS_SITE_ID: !!process.env.NETLIFY_BLOBS_SITE_ID,
+      NETLIFY_SITE_ID: !!process.env.NETLIFY_SITE_ID,
+      NETLIFY_BLOBS_TOKEN: !!process.env.NETLIFY_BLOBS_TOKEN,
+      NETLIFY_API_TOKEN: !!process.env.NETLIFY_API_TOKEN,
+    };
+    throw new Error("Blobs config missing. Need NETLIFY_BLOBS_SITE_ID (or NETLIFY_SITE_ID) and NETLIFY_BLOBS_TOKEN (or NETLIFY_API_TOKEN). Seen: " + JSON.stringify(missing));
+  }
+  return { siteID, token };
 }
 
-export const settingsStore = getStore("settings-store", blobsConfigOrUndefined());
-export const ragStore = getStore("rag-store", blobsConfigOrUndefined());
-export const logsStore = getStore("logs-store", blobsConfigOrUndefined());
+export const settingsStore = getStore("settings-store", blobsRequiredConfig());
+export const ragStore = getStore("rag-store", blobsRequiredConfig());
+export const logsStore = getStore("logs-store", blobsRequiredConfig());
 
 export async function loadSettings() {
   const cfg = (await settingsStore.getJSON("admin:config")) as any | null;
@@ -112,7 +119,6 @@ export async function listLogs(prefix: string, limit = 500) {
     if (val) out.push({ id: b.key, ...val });
     if (out.length >= limit) break;
   }
-  // newest first
   out.sort((a, b) => (a.ts < b.ts ? 1 : -1));
   return out;
 }
