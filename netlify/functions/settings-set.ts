@@ -1,8 +1,6 @@
 import { json, loadSettings, settingsStore, getUser, requireAdmin } from "./util";
-
-export const handler = async (event: any, context: any) => {
-  const user = getUser(context);
-  requireAdmin(user);
+export const handler = async (event:any, context:any) => {
+  const user = getUser(context); requireAdmin(user);
   const body = JSON.parse(event.body || "{}");
   const prev = await loadSettings();
   const merged = {
@@ -13,5 +11,5 @@ export const handler = async (event: any, context: any) => {
     chatRequireAuth: body.chatRequireAuth ?? prev.chatRequireAuth,
   };
   await settingsStore.setJSON("admin:config", merged);
-  return json({ ok: true });
+  return json({ ok:true });
 };

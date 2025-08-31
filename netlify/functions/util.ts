@@ -4,7 +4,7 @@ import crypto from "crypto";
 
 export type User = { email?: string; roles?: string[]; sub?: string } | null;
 
-// ALWAYS construct explicit config from env; fail loudly if missing
+// Always use explicit config from env; throw if missing to surface misconfig early
 function blobsRequiredConfig() {
   const siteID = process.env.NETLIFY_BLOBS_SITE_ID || process.env.NETLIFY_SITE_ID;
   const token  = process.env.NETLIFY_BLOBS_TOKEN || process.env.NETLIFY_API_TOKEN;
@@ -27,17 +27,8 @@ export const logsStore = getStore("logs-store", blobsRequiredConfig());
 export async function loadSettings() {
   const cfg = (await settingsStore.getJSON("admin:config")) as any | null;
   return {
-    sys_prompt:
-      cfg?.sys_prompt ||
-      `You are AcceleraQA, a concise AI learning assistant for pharma Quality & Compliance.
-Answer conversationally in under 180 words unless the user asks for depth. Always aim to add value.
-When relevant, include a fenced \u0060\u0060\u0060json block named resources like:
-
-\u0060\u0060\u0060json
-{ "resources": [ { "title": "21 CFR Part 11 Subpart B", "url": "https://www.ecfr.gov/" } ] }
-\u0060\u0060\u0060
-
-Focus on authoritative sources (FDA, EMA, MHRA, ICH, ISO, NIST, EudraLex, Data Privacy Framework, etc.).`,
+    sys_prompt: cfg?.sys_prompt || `You are AcceleraQA, a concise AI learning assistant for pharma Quality & Compliance.
+Answer in under 180 words unless asked for depth. Include a fenced \\`\\`\\`json resources block when useful.`,
     allowedDomains: cfg?.allowedDomains ?? [],
     resourcesMax: cfg?.resourcesMax ?? 6,
     ragTopK: cfg?.ragTopK ?? 3,
@@ -46,7 +37,6 @@ Focus on authoritative sources (FDA, EMA, MHRA, ICH, ISO, NIST, EudraLex, Data P
 }
 
 export function getUser(context: HandlerContext): User {
-  // Netlify Identity populates clientContext.user
   // @ts-ignore
   const u = (context as any)?.clientContext?.user as any | undefined;
   if (!u) return null;
@@ -78,47 +68,28 @@ export function requireChatAuth(user: User, settings: any) {
 }
 
 export function json(body: any, statusCode = 200) {
-  return {
-    statusCode,
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  };
+  return { statusCode, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) };
 }
-
 export function errorJSON(message: string, statusCode = 500, detail?: any) {
   const debug = process.env.DEBUG_ERROR_DETAILS === "true";
   return json({ error: message, ...(debug && detail ? { detail } : {}) }, statusCode);
 }
-
-export function nowISO() {
-  return new Date().toISOString();
-}
-
-export function id(prefix: string) {
-  return `${prefix}:${crypto.randomUUID()}`;
-}
-
-export async function logUserEntry(user: User, entry: any) {
+export function nowISO(){ return new Date().toISOString(); }
+export function id(prefix: string){ return `${prefix}:${crypto.randomUUID()}`; }
+export async function logUserEntry(user: User, entry: any){
   const email = user?.email || "anon";
   const key = `user:${email}:${entry.ts}:${crypto.randomBytes(3).toString("hex")}`;
-  await logsStore.setJSON(key, entry);
-  return key;
+  await logsStore.setJSON(key, entry); return key;
 }
-
-export async function logAdminEntry(entry: any) {
+export async function logAdminEntry(entry: any){
   const key = `admin:${entry.ts}:${crypto.randomBytes(3).toString("hex")}`;
-  await logsStore.setJSON(key, entry);
-  return key;
+  await logsStore.setJSON(key, entry); return key;
 }
-
-export async function listLogs(prefix: string, limit = 500) {
-  const out: any[] = [];
-  const listed = await logsStore.list({ prefix });
-  for (const b of listed.blobs) {
-    const val = await logsStore.getJSON(b.key);
-    if (val) out.push({ id: b.key, ...val });
+export async function listLogs(prefix: string, limit = 500){
+  const out: any[] = []; const listed = await logsStore.list({ prefix });
+  for (const b of listed.blobs){
+    const val = await logsStore.getJSON(b.key); if (val) out.push({ id: b.key, ...val });
     if (out.length >= limit) break;
   }
-  out.sort((a, b) => (a.ts < b.ts ? 1 : -1));
-  return out;
+  out.sort((a,b) => (a.ts < b.ts ? 1 : -1)); return out;
 }
