@@ -1,12 +1,21 @@
+
 import type { Handler, HandlerEvent, HandlerContext } from "@netlify/functions";
 import { getStore } from "@netlify/blobs";
 import crypto from "crypto";
 
 export type User = { email?: string; roles?: string[]; sub?: string } | null;
 
-export const settingsStore = getStore("settings-store");
-export const ragStore = getStore("rag-store");
-export const logsStore = getStore("logs-store");
+// --- NEW: allow manual config for local/dev or non-Netlify hosts ---
+function blobsConfigOrUndefined() {
+  const siteID = process.env.NETLIFY_BLOBS_SITE_ID || process.env.NETLIFY_SITE_ID;
+  const token  = process.env.NETLIFY_BLOBS_TOKEN;
+  if (siteID && token) return { siteID, token };
+  return undefined; // Use Netlify's auto-injected environment when deployed
+}
+
+export const settingsStore = getStore("settings-store", blobsConfigOrUndefined());
+export const ragStore = getStore("rag-store", blobsConfigOrUndefined());
+export const logsStore = getStore("logs-store", blobsConfigOrUndefined());
 
 export async function loadSettings() {
   const cfg = (await settingsStore.getJSON("admin:config")) as any | null;
